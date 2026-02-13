@@ -31,6 +31,10 @@ struct Args {
     /// Fail if any difference is found (non-zero exit code)
     #[arg(long)]
     fail_on_diff: bool,
+
+    /// Output results in JSON format
+    #[arg(long)]
+    json: bool,
 }
 
 fn main() -> Result<()> {
@@ -51,21 +55,26 @@ fn run_file_diff(args: &Args) -> Result<()> {
         args.output.is_some() || args.preview,
     )?;
 
-    println!("{}", "Comparison Result:".bold());
-    println!("  Similarity: {:.2}%", res.score * 100.0);
-    println!("  Diff Pixels: {}", res.diff_pixels);
-    println!("  Total Pixels: {}", res.total_pixels);
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&res)?);
+    } else {
+        println!("{}", "Comparison Result:".bold());
+        println!("  Pixel Similarity: {:.2}%", res.score * 100.0);
+        println!("  SSIM Score:       {:.4}", res.ssim_score);
+        println!("  Diff Pixels:      {}", res.diff_pixels);
+        println!("  Total Pixels:     {}", res.total_pixels);
 
-    if let Some(diff_img) = &res.diff_image {
-        if let Some(output_path) = &args.output {
-            diff_img.save(output_path)?;
-            println!("  Diff image saved to: {}", output_path.display().to_string().cyan());
-        }
+        if let Some(diff_img) = &res.diff_image {
+            if let Some(output_path) = &args.output {
+                diff_img.save(output_path)?;
+                println!("  Diff image saved to: {}", output_path.display().to_string().cyan());
+            }
 
-        if args.preview {
-            println!("\n{}", "Terminal Preview:".bold());
-            let dynamic_img = image::DynamicImage::ImageRgba8(diff_img.clone());
-            terminal::print_preview(&dynamic_img);
+            if args.preview {
+                println!("\n{}", "Terminal Preview:".bold());
+                let dynamic_img = image::DynamicImage::ImageRgba8(diff_img.clone());
+                terminal::print_preview(&dynamic_img);
+            }
         }
     }
 
@@ -79,49 +88,61 @@ fn run_file_diff(args: &Args) -> Result<()> {
 fn run_dir_diff(args: &Args) -> Result<()> {
     let items = dir::compare_directories(&args.path_a, &args.path_b, args.threshold)?;
 
-    println!("\n{:<40} {:<10} {:<10}", "File", "Score", "Status");
-    println!("{}", "-".repeat(65));
-
     let mut diff_count = 0;
 
-    let total_files = items.len();
-    for item in items {
-        match item.status {
-            dir::DirDiffStatus::Match(res) => {
-                let status = if res.diff_pixels > 0 {
-                    diff_count += 1;
-                    "DIFF".red()
-                } else {
-                    "OK".green()
-                };
-                println!("{:<40} {:<10.2}% {:<10}", 
-                    item.relative_path.display().to_string(),
-                    res.score * 100.0,
-                    status
-                );
-            }
-            dir::DirDiffStatus::MissingInB => {
-                diff_count += 1;
-                println!("{:<40} {:<10} {:<10}", 
-                    item.relative_path.display().to_string(),
-                    "-".dimmed(),
-                    "MISSING".yellow()
-                );
-            }
-            dir::DirDiffStatus::Error(e) => {
-                println!("{:<40} {:<10} {:<10}", 
-                    item.relative_path.display().to_string(),
-                    "ERROR".red(),
-                    e.yellow()
-                );
+    if args.json {
+        println!("{}", serde_json::to_string_pretty(&items)?);
+        // Calculate diff_count for exit code even in JSON mode
+        for item in &items {
+            match item.status {
+                dir::DirDiffStatus::Match(ref res) if res.diff_pixels > 0 => diff_count += 1,
+                dir::DirDiffStatus::MissingInB => diff_count += 1,
+                _ => {}
             }
         }
-    }
+    } else {
+        println!("\n{:<40} {:<10} {:<10} {:<10}", "File", "Pixel", "SSIM", "Status");
+        println!("{}", "-".repeat(75));
 
-    println!("\nSummary: {} files compared, {} differences found.", 
-        total_files, 
-        diff_count
-    );
+        for item in &items {
+            match item.status {
+                dir::DirDiffStatus::Match(ref res) => {
+                    let status = if res.diff_pixels > 0 {
+                        diff_count += 1;
+                        "DIFF".red()
+                    } else {
+                        "OK".green()
+                    };
+                    println!("{:<40} {:<10.2}% {:<10.4} {:<10}", 
+                        item.relative_path.display().to_string(),
+                        res.score * 100.0,
+                        res.ssim_score,
+                        status
+                    );
+                }
+                dir::DirDiffStatus::MissingInB => {
+                    diff_count += 1;
+                    println!("{:<40} {:<10} {:<10}", 
+                        item.relative_path.display().to_string(),
+                        "-".dimmed(),
+                        "MISSING".yellow()
+                    );
+                }
+                dir::DirDiffStatus::Error(ref e) => {
+                    println!("{:<40} {:<10} {:<10}", 
+                        item.relative_path.display().to_string(),
+                        "ERROR".red(),
+                        e.yellow()
+                    );
+                }
+            }
+        }
+
+        println!("\nSummary: {} files compared, {} differences found.", 
+            items.len(), 
+            diff_count
+        );
+    }
 
     if args.fail_on_diff && diff_count > 0 {
         std::process::exit(1);

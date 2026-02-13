@@ -3,14 +3,18 @@ use anyhow::Result;
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
+use serde::Serialize;
 use walkdir::WalkDir;
 
+#[derive(Serialize)]
+#[serde(tag = "type", content = "data")]
 pub enum DirDiffStatus {
     Match(DiffResult),
     MissingInB,
     Error(String),
 }
 
+#[derive(Serialize)]
 pub struct DirDiffItem {
     pub relative_path: PathBuf,
     pub status: DirDiffStatus,
