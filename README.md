@@ -13,6 +13,7 @@
 - **Dual Metrics:** Reports both raw Pixel Similarity and Structural Similarity (SSIM).
 - **Directory Diffing:** Recursively compare folders of images with summary reporting.
 - **CI/CD Ready:** Support for JSON output and semantic exit codes.
+- **Interactive Review:** Step through differences and accept/reject changes on the fly.
 
 ## Installation
 
@@ -65,5 +66,6 @@ image-diff a.png b.png --mask mask.png
 | `-o, --output` | Path to save the high-res diff overlay image | `None` |
 | `-i, --ignore` | Ignore region in `x,y,w,h` format | `[]` |
 | `-m, --mask` | Path to a mask image (black = ignore) | `None` |
+| `--review` | Interactive review mode for directory diffs | `false` |
 | `--json` | Output machine-readable results in JSON format | `false` |
 | `--fail-on-diff` | Return exit code 1 if differences are detected | `false` |
