@@ -1,4 +1,4 @@
-use crate::compare::{compare_images, DiffResult};
+use crate::compare::{compare_images, DiffResult, Region};
 use anyhow::Result;
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
@@ -24,6 +24,7 @@ pub fn compare_directories(
     dir_a: &Path,
     dir_b: &Path,
     threshold: f32,
+    ignore_regions: &[Region],
 ) -> Result<Vec<DirDiffItem>> {
     let files_a: Vec<PathBuf> = WalkDir::new(dir_a)
         .into_iter()
@@ -46,7 +47,7 @@ pub fn compare_directories(
             let status = if !path_b.exists() {
                 DirDiffStatus::MissingInB
             } else {
-                match compare_images(&path_a, &path_b, threshold, false) {
+                match compare_images(&path_a, &path_b, threshold, false, ignore_regions) {
                     Ok(res) => DirDiffStatus::Match(res),
                     Err(e) => DirDiffStatus::Error(e.to_string()),
                 }

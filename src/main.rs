@@ -7,6 +7,22 @@ use clap::Parser;
 use colored::*;
 use std::path::PathBuf;
 
+use crate::compare::Region;
+use std::str::FromStr;
+
+impl FromStr for Region {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<u32> = s.split(',')
+            .map(|p| p.parse::<u32>())
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        if parts.len() != 4 {
+            return Err(anyhow::anyhow!("Region must be in format x,y,width,height"));
+        }
+        Ok(Region { x: parts[0], y: parts[1], width: parts[2], height: parts[3] })
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -35,6 +51,10 @@ struct Args {
     /// Output results in JSON format
     #[arg(long)]
     json: bool,
+
+    /// Ignore regions in format x,y,width,height (can be used multiple times)
+    #[arg(short, long, value_delimiter = ' ')]
+    ignore: Vec<Region>,
 }
 
 fn main() -> Result<()> {
@@ -53,6 +73,7 @@ fn run_file_diff(args: &Args) -> Result<()> {
         &args.path_b,
         args.threshold,
         args.output.is_some() || args.preview,
+        &args.ignore,
     )?;
 
     if args.json {
@@ -86,7 +107,7 @@ fn run_file_diff(args: &Args) -> Result<()> {
 }
 
 fn run_dir_diff(args: &Args) -> Result<()> {
-    let items = dir::compare_directories(&args.path_a, &args.path_b, args.threshold)?;
+    let items = dir::compare_directories(&args.path_a, &args.path_b, args.threshold, &args.ignore)?;
 
     let mut diff_count = 0;
 

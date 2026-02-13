@@ -14,11 +14,26 @@ pub struct DiffResult {
     pub diff_image: Option<ImageBuffer<Rgba<u8>, Vec<u8>>>,
 }
 
+#[derive(Serialize, Clone, Debug)]
+pub struct Region {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Region {
+    pub fn contains(&self, x: u32, y: u32) -> bool {
+        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
+}
+
 pub fn compare_images(
     path_a: &Path,
     path_b: &Path,
     threshold: f32,
     generate_diff: bool,
+    ignore_regions: &[Region],
 ) -> Result<DiffResult> {
     let img_a = image::open(path_a)?;
     let img_b = image::open(path_b)?;
@@ -57,10 +72,16 @@ pub fn compare_images(
 
     for y in 0..max_height {
         for x in 0..max_width {
+            let is_ignored = ignore_regions.iter().any(|r| r.contains(x, y));
+
             let pixel_a = rgba_a.get_pixel(x, y);
             let pixel_b = rgba_b.get_pixel(x, y);
 
-            let dist = color_distance(pixel_a, pixel_b);
+            let dist = if is_ignored {
+                0.0 // Treat as identical
+            } else {
+                color_distance(pixel_a, pixel_b)
+            };
             
             let is_different = dist > (threshold as f64);
 
@@ -70,9 +91,10 @@ pub fn compare_images(
                     buffer.put_pixel(x, y, Rgba([255, 0, 255, 255]));
                 }
             } else if let Some(ref mut buffer) = diff_buffer {
-                let r = (pixel_a[0] as f32 * 0.1) as u8;
-                let g = (pixel_a[1] as f32 * 0.1) as u8;
-                let b = (pixel_a[2] as f32 * 0.1) as u8;
+                let factor = if is_ignored { 0.02 } else { 0.1 };
+                let r = (pixel_a[0] as f32 * factor) as u8;
+                let g = (pixel_a[1] as f32 * factor) as u8;
+                let b = (pixel_a[2] as f32 * factor) as u8;
                 buffer.put_pixel(x, y, Rgba([r, g, b, 255]));
             }
         }
