@@ -52,6 +52,10 @@ struct Args {
     #[arg(long)]
     json: bool,
 
+    /// Interactive review mode for directory diffs
+    #[arg(long)]
+    review: bool,
+
     /// Ignore regions in format x,y,width,height (can be used multiple times)
     #[arg(short, long, value_delimiter = ' ')]
     ignore: Vec<Region>,
@@ -174,6 +178,50 @@ fn run_dir_diff(args: &Args) -> Result<()> {
             items.len(), 
             diff_count
         );
+
+        if args.review && diff_count > 0 {
+            use dialoguer::Select;
+            println!("\n{}", "Entering Review Mode...".bold().yellow());
+            
+            for item in items {
+                if let dir::DirDiffStatus::Match(res) = &item.status {
+                    if res.diff_pixels > 0 {
+                        println!("\n{}", "-".repeat(40));
+                        println!("Reviewing: {}", item.relative_path.display().to_string().bold().cyan());
+                        println!("Pixel Similarity: {:.2}%", res.score * 100.0);
+                        
+                        // Regenerate diff for preview
+                        let full_res = compare::compare_images(
+                            &args.path_a.join(&item.relative_path),
+                            &args.path_b.join(&item.relative_path),
+                            args.threshold,
+                            true,
+                            &args.ignore,
+                            args.mask.as_deref(),
+                        )?;
+
+                        if let Some(diff_img) = full_res.diff_image {
+                            println!("{}", "Terminal Preview (Heatmap):".dimmed());
+                            terminal::print_preview(&image::DynamicImage::ImageRgba8(diff_img));
+                        }
+
+                        let selections = &["Keep Original", "Accept New (Overwrite Original)", "Skip"];
+                        let selection = Select::new()
+                            .with_prompt("Action")
+                            .default(0)
+                            .items(&selections[..])
+                            .interact()?;
+
+                        if selection == 1 {
+                            let src = args.path_b.join(&item.relative_path);
+                            let dst = args.path_a.join(&item.relative_path);
+                            std::fs::copy(&src, &dst)?;
+                            println!("{}", "✓ Baseline updated.".green());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if args.fail_on_diff && diff_count > 0 {
