@@ -25,6 +25,7 @@ pub fn compare_directories(
     dir_b: &Path,
     threshold: f32,
     ignore_regions: &[Region],
+    mask_path: Option<&Path>,
 ) -> Result<Vec<DirDiffItem>> {
     let files_a: Vec<PathBuf> = WalkDir::new(dir_a)
         .into_iter()
@@ -47,7 +48,7 @@ pub fn compare_directories(
             let status = if !path_b.exists() {
                 DirDiffStatus::MissingInB
             } else {
-                match compare_images(&path_a, &path_b, threshold, false, ignore_regions) {
+                match compare_images(&path_a, &path_b, threshold, false, ignore_regions, mask_path) {
                     Ok(res) => DirDiffStatus::Match(res),
                     Err(e) => DirDiffStatus::Error(e.to_string()),
                 }

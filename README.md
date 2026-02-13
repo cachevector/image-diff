@@ -45,9 +45,15 @@ image-diff a.png b.png --json --fail-on-diff
 ```
 
 ### Ignore dynamic regions
-Ignore parts of the image that change frequently (like timestamps):
+Ignore parts of the image that change frequently using coordinates:
 ```bash
-image-diff a.png b.png --ignore 0,0,100,50 --ignore 500,500,200,100
+image-diff a.png b.png --ignore 0,0,100,50
+```
+
+### Image-based Masking
+Use an image as a mask. Black pixels in the mask image will be ignored in the comparison:
+```bash
+image-diff a.png b.png --mask mask.png
 ```
 
 ## CLI Options
@@ -58,5 +64,6 @@ image-diff a.png b.png --ignore 0,0,100,50 --ignore 500,500,200,100
 | `-p, --preview` | Render a low-res diff heatmap in the terminal | `false` |
 | `-o, --output` | Path to save the high-res diff overlay image | `None` |
 | `-i, --ignore` | Ignore region in `x,y,w,h` format | `[]` |
+| `-m, --mask` | Path to a mask image (black = ignore) | `None` |
 | `--json` | Output machine-readable results in JSON format | `false` |
 | `--fail-on-diff` | Return exit code 1 if differences are detected | `false` |

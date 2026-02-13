@@ -34,6 +34,7 @@ pub fn compare_images(
     threshold: f32,
     generate_diff: bool,
     ignore_regions: &[Region],
+    mask_path: Option<&Path>,
 ) -> Result<DiffResult> {
     let img_a = image::open(path_a)?;
     let img_b = image::open(path_b)?;
@@ -44,8 +45,13 @@ pub fn compare_images(
     let max_width = width_a.max(width_b);
     let max_height = height_a.max(height_b);
 
+    let mask_img = if let Some(path) = mask_path {
+        Some(image::open(path)?.to_rgba8())
+    } else {
+        None
+    };
+
     // For SSIM, we need identical dimensions.
-    // We'll use the max dimensions and pad with transparent pixels if needed.
     let mut rgba_a = img_a.to_rgba8();
     let mut rgba_b = img_b.to_rgba8();
 
@@ -72,7 +78,19 @@ pub fn compare_images(
 
     for y in 0..max_height {
         for x in 0..max_width {
-            let is_ignored = ignore_regions.iter().any(|r| r.contains(x, y));
+            let mut is_ignored = ignore_regions.iter().any(|r| r.contains(x, y));
+            
+            if !is_ignored {
+                if let Some(ref mask) = mask_img {
+                    if x < mask.width() && y < mask.height() {
+                        let mask_pixel = mask.get_pixel(x, y);
+                        // Ignore if mask pixel is black or has low alpha
+                        if (mask_pixel[0] == 0 && mask_pixel[1] == 0 && mask_pixel[2] == 0) || mask_pixel[3] < 128 {
+                            is_ignored = true;
+                        }
+                    }
+                }
+            }
 
             let pixel_a = rgba_a.get_pixel(x, y);
             let pixel_b = rgba_b.get_pixel(x, y);
@@ -160,7 +178,7 @@ mod tests {
         img.save(file_a.path())?;
         img.save(file_b.path())?;
 
-        let res = compare_images(file_a.path(), file_b.path(), 0.1, false, &[])?;
+        let res = compare_images(file_a.path(), file_b.path(), 0.1, false, &[], None)?;
         assert_eq!(res.diff_pixels, 0);
         assert_eq!(res.score, 1.0);
         assert!(res.ssim_score > 0.99);
@@ -181,14 +199,39 @@ mod tests {
         img_b.save(file_b.path())?;
 
         // Without ignore
-        let res1 = compare_images(file_a.path(), file_b.path(), 0.1, false, &[])?;
+        let res1 = compare_images(file_a.path(), file_b.path(), 0.1, false, &[], None)?;
         assert_eq!(res1.diff_pixels, 1);
 
         // With ignore
         let ignore = [Region { x: 5, y: 5, width: 1, height: 1 }];
-        let res2 = compare_images(file_a.path(), file_b.path(), 0.1, false, &ignore)?;
+        let res2 = compare_images(file_a.path(), file_b.path(), 0.1, false, &ignore, None)?;
         assert_eq!(res2.diff_pixels, 0);
         assert_eq!(res2.score, 1.0);
+        Ok(())
+    }
+
+    #[test]
+    fn test_compare_with_mask() -> Result<()> {
+        let mut img_a: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(10, 10);
+        for p in img_a.pixels_mut() { *p = Rgba([100, 100, 100, 255]); }
+        
+        let mut img_b = img_a.clone();
+        img_b.put_pixel(5, 5, Rgba([255, 0, 0, 255]));
+
+        let mut mask: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(10, 10);
+        for p in mask.pixels_mut() { *p = Rgba([255, 255, 255, 255]); }
+        mask.put_pixel(5, 5, Rgba([0, 0, 0, 255])); // Mask out the difference
+
+        let file_a = tempfile::Builder::new().suffix(".png").tempfile()?;
+        let file_b = tempfile::Builder::new().suffix(".png").tempfile()?;
+        let file_mask = tempfile::Builder::new().suffix(".png").tempfile()?;
+        
+        img_a.save(file_a.path())?;
+        img_b.save(file_b.path())?;
+        mask.save(file_mask.path())?;
+
+        let res = compare_images(file_a.path(), file_b.path(), 0.1, false, &[], Some(file_mask.path()))?;
+        assert_eq!(res.diff_pixels, 0);
         Ok(())
     }
 }

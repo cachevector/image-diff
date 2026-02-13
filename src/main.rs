@@ -55,6 +55,10 @@ struct Args {
     /// Ignore regions in format x,y,width,height (can be used multiple times)
     #[arg(short, long, value_delimiter = ' ')]
     ignore: Vec<Region>,
+
+    /// Path to a mask image (black areas are ignored)
+    #[arg(short, long)]
+    mask: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -74,6 +78,7 @@ fn run_file_diff(args: &Args) -> Result<()> {
         args.threshold,
         args.output.is_some() || args.preview,
         &args.ignore,
+        args.mask.as_deref(),
     )?;
 
     if args.json {
@@ -107,7 +112,13 @@ fn run_file_diff(args: &Args) -> Result<()> {
 }
 
 fn run_dir_diff(args: &Args) -> Result<()> {
-    let items = dir::compare_directories(&args.path_a, &args.path_b, args.threshold, &args.ignore)?;
+    let items = dir::compare_directories(
+        &args.path_a, 
+        &args.path_b, 
+        args.threshold, 
+        &args.ignore,
+        args.mask.as_deref()
+    )?;
 
     let mut diff_count = 0;
 
