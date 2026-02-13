@@ -9,11 +9,12 @@
 ## Features
 
 - **Blazing Fast:** Parallel directory processing using Rust's Rayon.
-- **Terminal Previews:** View diff heatmaps directly in your terminal using ANSI half-blocks.
-- **Dual Metrics:** Reports both raw Pixel Similarity and Structural Similarity (SSIM).
+- **High-Res Previews:** Support for Sixel, Kitty, and iTerm2 graphics protocols for near-perfect terminal previews (with automatic ANSI fallback).
+- **Perceptual Accuracy:** Uses CIEDE2000 color difference formula for human-centric comparison.
+- **Anti-Aliasing Detection:** Intelligent heuristic to ignore sub-pixel rendering artifacts in UI tests.
 - **Directory Diffing:** Recursively compare folders of images with summary reporting.
-- **CI/CD Ready:** Support for JSON output and semantic exit codes.
 - **Interactive Review:** Step through differences and accept/reject changes on the fly.
+- **CI/CD Ready:** Support for JSON output and semantic exit codes.
 
 ## Installation
 
