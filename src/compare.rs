@@ -3,6 +3,7 @@ use image::{GenericImageView, ImageBuffer, Rgba};
 use image_compare::Algorithm;
 use serde::Serialize;
 use std::path::Path;
+use lab::Lab;
 
 #[derive(Serialize)]
 pub struct DiffResult {
@@ -98,7 +99,17 @@ pub fn compare_images(
             let dist = if is_ignored {
                 0.0 // Treat as identical
             } else {
-                color_distance(pixel_a, pixel_b)
+                let d = color_distance(pixel_a, pixel_b);
+                // Simple anti-aliasing check: if difference is small but > threshold, check neighbors
+                if d > (threshold as f64) && d < (threshold as f64 * 1.5) {
+                    if is_antialiased(x, y, max_width, max_height, &rgba_a, &rgba_b) {
+                        0.0
+                    } else {
+                        d
+                    }
+                } else {
+                    d
+                }
             };
             
             let is_different = dist > (threshold as f64);
@@ -136,13 +147,59 @@ pub fn compare_images(
 
 
 fn color_distance(p1: &Rgba<u8>, p2: &Rgba<u8>) -> f64 {
-    let r_diff = (p1[0] as f64 - p2[0] as f64) / 255.0;
-    let g_diff = (p1[1] as f64 - p2[1] as f64) / 255.0;
-    let b_diff = (p1[2] as f64 - p2[2] as f64) / 255.0;
-    let a_diff = (p1[3] as f64 - p2[3] as f64) / 255.0;
+    // Convert RGBA to Lab for perceptual distance
+    let lab1 = Lab::from_rgb(&[p1[0], p1[1], p1[2]]);
+    let lab2 = Lab::from_rgb(&[p2[0], p2[1], p2[2]]);
 
-    // Euclidean distance in RGBA space
-    (r_diff * r_diff + g_diff * g_diff + b_diff * b_diff + a_diff * a_diff).sqrt()
+    // Calculate DeltaE 2000
+    // We normalize by alpha difference roughly since DeltaE is color-only
+    let color_diff = delta_e::DE2000::new(lab1, lab2) as f64;
+    
+    // Scale alpha difference (0-255 -> 0-100 to match Lab scale roughly)
+    let alpha_diff = (p1[3] as f64 - p2[3] as f64).abs() / 2.55;
+
+    // Combine: weighted average or max.
+    // CIEDE2000 > 2.3 is usually "just noticeable difference" (JND)
+    // We treat > 10.0 as a significant color shift.
+    // Let's normalize to roughly 0.0-1.0 range for our threshold logic by dividing by 100.0
+    // But our tool expects threshold 0.1 (10%).
+    
+    (color_diff + alpha_diff) / 100.0
+}
+
+fn is_antialiased(
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    img_a: &ImageBuffer<Rgba<u8>, Vec<u8>>,
+    img_b: &ImageBuffer<Rgba<u8>, Vec<u8>>
+) -> bool {
+    // Check if pixel value is roughly an average of its neighbors in either image
+    // This is a heuristic: if a pixel is different but its value exists in the neighbor
+    // set of the other image, it's likely a sub-pixel shift.
+    
+    let neighbors = [
+        (x.saturating_sub(1), y),
+        (x + 1, y),
+        (x, y.saturating_sub(1)),
+        (x, y + 1),
+    ];
+    
+    let _p_a = img_a.get_pixel(x, y);
+    let p_b = img_b.get_pixel(x, y);
+    
+    // Check if B's pixel exists in A's neighbors (shift)
+    for (nx, ny) in neighbors {
+        if nx < width && ny < height {
+            let neighbor_a = img_a.get_pixel(nx, ny);
+            if color_distance(p_b, neighbor_a) < 0.05 {
+                return true;
+            }
+        }
+    }
+    
+    false
 }
 
 #[cfg(test)]
@@ -153,7 +210,8 @@ mod tests {
     fn test_color_distance() {
         let p1 = Rgba([0, 0, 0, 255]);
         let p2 = Rgba([255, 255, 255, 255]);
-        assert!((color_distance(&p1, &p2) - 1.732).abs() < 0.01);
+        // Black vs White is approx 1.0 (100.0 / 100.0)
+        assert!((color_distance(&p1, &p2) - 1.0).abs() < 0.1);
 
         let p3 = Rgba([100, 100, 100, 255]);
         assert_eq!(color_distance(&p3, &p3), 0.0);

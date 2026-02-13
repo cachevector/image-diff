@@ -1,14 +1,31 @@
 use colored::*;
 use image::{DynamicImage, GenericImageView, Rgba};
 use terminal_size::{terminal_size, Width};
+use viuer::{print, Config};
 
 pub fn print_preview(img: &DynamicImage) {
-    let (tw, _th) = if let Some((Width(w), h)) = terminal_size() {
+    let (tw, th) = if let Some((Width(w), h)) = terminal_size() {
         (w as u32, h.0 as u32)
     } else {
         (80, 24)
     };
 
+    // Try to render with high-res graphics protocol (Sixel, Kitty, iTerm2)
+    let conf = Config {
+        transparent: true,
+        absolute_offset: false,
+        x: 0,
+        y: 0,
+        width: Some(tw),
+        height: Some(th),
+        ..Default::default()
+    };
+
+    if print(img, &conf).is_ok() {
+        return;
+    }
+
+    // Fallback to ANSI half-blocks
     let (width, height) = img.dimensions();
     let aspect_ratio = height as f32 / width as f32;
     
