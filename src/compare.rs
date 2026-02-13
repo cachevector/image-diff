@@ -126,3 +126,69 @@ fn color_distance(p1: &Rgba<u8>, p2: &Rgba<u8>) -> f64 {
     // Euclidean distance in RGBA space
     (r_diff * r_diff + g_diff * g_diff + b_diff * b_diff + a_diff * a_diff).sqrt()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_color_distance() {
+        let p1 = Rgba([0, 0, 0, 255]);
+        let p2 = Rgba([255, 255, 255, 255]);
+        assert!((color_distance(&p1, &p2) - 1.732).abs() < 0.01);
+
+        let p3 = Rgba([100, 100, 100, 255]);
+        assert_eq!(color_distance(&p3, &p3), 0.0);
+    }
+
+    #[test]
+    fn test_region_contains() {
+        let region = Region { x: 10, y: 10, width: 20, height: 20 };
+        assert!(region.contains(10, 10));
+        assert!(region.contains(29, 29));
+        assert!(!region.contains(9, 10));
+        assert!(!region.contains(30, 30));
+    }
+
+    #[test]
+    fn test_compare_identical() -> Result<()> {
+        let mut img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(10, 10);
+        for p in img.pixels_mut() { *p = Rgba([100, 100, 100, 255]); }
+        
+        let file_a = tempfile::Builder::new().suffix(".png").tempfile()?;
+        let file_b = tempfile::Builder::new().suffix(".png").tempfile()?;
+        img.save(file_a.path())?;
+        img.save(file_b.path())?;
+
+        let res = compare_images(file_a.path(), file_b.path(), 0.1, false, &[])?;
+        assert_eq!(res.diff_pixels, 0);
+        assert_eq!(res.score, 1.0);
+        assert!(res.ssim_score > 0.99);
+        Ok(())
+    }
+
+    #[test]
+    fn test_compare_different_with_ignore() -> Result<()> {
+        let mut img_a: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(10, 10);
+        for p in img_a.pixels_mut() { *p = Rgba([100, 100, 100, 255]); }
+        
+        let mut img_b = img_a.clone();
+        img_b.put_pixel(5, 5, Rgba([255, 0, 0, 255]));
+
+        let file_a = tempfile::Builder::new().suffix(".png").tempfile()?;
+        let file_b = tempfile::Builder::new().suffix(".png").tempfile()?;
+        img_a.save(file_a.path())?;
+        img_b.save(file_b.path())?;
+
+        // Without ignore
+        let res1 = compare_images(file_a.path(), file_b.path(), 0.1, false, &[])?;
+        assert_eq!(res1.diff_pixels, 1);
+
+        // With ignore
+        let ignore = [Region { x: 5, y: 5, width: 1, height: 1 }];
+        let res2 = compare_images(file_a.path(), file_b.path(), 0.1, false, &ignore)?;
+        assert_eq!(res2.diff_pixels, 0);
+        assert_eq!(res2.score, 1.0);
+        Ok(())
+    }
+}
