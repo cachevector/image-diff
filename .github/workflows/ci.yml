@@ -19,17 +19,17 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact_name: image-diff-linux
+            artifact_name: linux
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: image-diff-macos
+            artifact_name: macos
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: image-diff-windows.exe
+            artifact_name: windows
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -38,16 +38,39 @@ jobs:
     - name: Build Binary
       run: cargo build --release --target ${{ matrix.target }}
 
-    - name: Upload Artifact
+    - name: Package Linux (DEB & RPM)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        cargo install cargo-deb cargo-generate-rpm
+        cargo deb --target ${{ matrix.target }} --no-build
+        cargo generate-rpm --target ${{ matrix.target }}
+        cp target/${{ matrix.target }}/debian/*.deb image-diff.deb
+        cp target/${{ matrix.target }}/generate-rpm/*.rpm image-diff.rpm
+
+    - name: Prepare Windows
+      if: matrix.os == 'windows-latest'
+      run: cp target/${{ matrix.target }}/release/image-diff.exe image-diff-windows.exe
+
+    - name: Prepare macOS
+      if: matrix.os == 'macos-latest'
+      run: cp target/${{ matrix.target }}/release/image-diff image-diff-macos
+
+    - name: Prepare Linux Binary
+      if: matrix.os == 'ubuntu-latest'
+      run: cp target/${{ matrix.target }}/release/image-diff image-diff-linux
+
+    - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.artifact_name }}
+        name: ${{ matrix.artifact_name }}-artifacts
         path: |
-          target/${{ matrix.target }}/release/image-diff
-          target/${{ matrix.target }}/release/image-diff.exe
+          image-diff.deb
+          image-diff.rpm
+          image-diff-linux
+          image-diff-windows.exe
+          image-diff-macos
         if-no-files-found: ignore
 
-  # Optional: Automatic GitHub Release on Tags
   release:
     name: Create GitHub Release
     if: startsWith(github.ref, 'refs/tags/')
@@ -58,13 +81,17 @@ jobs:
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
-      
+        with:
+          path: artifacts
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            image-diff-linux/image-diff
-            image-diff-macos/image-diff
-            image-diff-windows.exe/image-diff.exe
+            artifacts/linux-artifacts/image-diff.deb
+            artifacts/linux-artifacts/image-diff.rpm
+            artifacts/linux-artifacts/image-diff-linux
+            artifacts/windows-artifacts/image-diff-windows.exe
+            artifacts/macos-artifacts/image-diff-macos
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -23,5 +23,28 @@ viuer = "0.11.0"
 delta_e = "0.2.1"
 lab = "0.7.2" # Matches delta_e dependency
 
+[package.metadata.deb]
+maintainer = "Aftaab Siddiqui <aftaab@aftaab.xyz>"
+copyright = "2026, Aftaab Siddiqui"
+license-file = ["LICENSE", "0"]
+extended-description = """
+A high-performance CLI tool for visual image comparison with SSIM, 
+CIEDE2000, and terminal previews.
+"""
+section = "utility"
+priority = "optional"
+assets = [
+    ["target/release/image-diff", "/usr/bin/image-diff", "755"],
+]
+
+[package.metadata.rpm]
+package = "image-diff"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+image-diff = { path = "/usr/bin/image-diff" }
+
 [dev-dependencies]
 tempfile = "3.10.1"
