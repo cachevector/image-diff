@@ -37,13 +37,13 @@ assets = [
     ["target/release/image-diff", "/usr/bin/image-diff", "755"],
 ]
 
-[package.metadata.rpm]
+[package.metadata.generate-rpm]
 package = "image-diff"
 
-[package.metadata.rpm.cargo]
+[package.metadata.generate-rpm.cargo]
 buildflags = ["--release"]
 
-[package.metadata.rpm.targets]
+[package.metadata.generate-rpm.targets]
 image-diff = { path = "/usr/bin/image-diff" }
 
 [dev-dependencies]

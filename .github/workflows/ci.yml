@@ -44,8 +44,9 @@ jobs:
         cargo install cargo-deb cargo-generate-rpm
         cargo deb --target ${{ matrix.target }} --no-build
         cargo generate-rpm --target ${{ matrix.target }}
-        cp target/${{ matrix.target }}/debian/*.deb image-diff.deb
-        cp target/${{ matrix.target }}/generate-rpm/*.rpm image-diff.rpm
+        # Use wildcards to find the versioned files and move them to standard names
+        mv target/${{ matrix.target }}/debian/*.deb image-diff.deb
+        mv target/${{ matrix.target }}/generate-rpm/*.rpm image-diff.rpm
 
     - name: Prepare Windows
       if: matrix.os == 'windows-latest'
