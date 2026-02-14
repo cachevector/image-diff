@@ -6,9 +6,10 @@ authors = ["Aftaab Siddiqui <aftaab@aftaab.xyz>"]
 description = "Visual Difference Detection CLI for Images"
 license = "MIT"
 repository = "https://github.com/cachevector/image-diff"
+homepage = "https://github.com/cachevector/image-diff"
 
 [dependencies]
-image = "0.25.1"
+image = "0.24.9"
 clap = { version = "4.5.4", features = ["derive"] }
 rayon = "1.10.0"
 walkdir = "2.5.0"
@@ -23,7 +24,10 @@ image-compare = "0.5.0"
 dialoguer = "0.11.0"
 viuer = "0.11.0"
 delta_e = "0.2.1"
-lab = "0.7.2" # Matches delta_e dependency
+lab = "0.7.2"
+
+[dev-dependencies]
+tempfile = "3.10.1"
 
 [package.metadata.deb]
 maintainer = "Aftaab Siddiqui <aftaab@aftaab.xyz>"
@@ -40,13 +44,9 @@ assets = [
 ]
 
 [package.metadata.generate-rpm]
-package = "image-diff"
+assets = [
+    { source = "target/release/image-diff", dest = "/usr/bin/image-diff", mode = "755" }
+]
 
 [package.metadata.generate-rpm.cargo]
 buildflags = ["--release"]
-
-[package.metadata.generate-rpm.targets]
-image-diff = { path = "/usr/bin/image-diff" }
-
-[dev-dependencies]
-tempfile = "3.10.1"

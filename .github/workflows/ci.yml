@@ -42,9 +42,11 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         cargo install cargo-deb cargo-generate-rpm
+        # Symlink or copy the target binary to where deb/rpm expect it
+        mkdir -p target/release
+        cp target/${{ matrix.target }}/release/image-diff target/release/image-diff
         cargo deb --target ${{ matrix.target }} --no-build
         cargo generate-rpm --target ${{ matrix.target }}
-        # Use wildcards to find the versioned files and move them to standard names
         mv target/${{ matrix.target }}/debian/*.deb image-diff.deb
         mv target/${{ matrix.target }}/generate-rpm/*.rpm image-diff.rpm
 
