@@ -2,8 +2,10 @@
 name = "image-diff"
 version = "0.1.0"
 edition = "2021"
-authors = ["Batman"]
+authors = ["Aftaab Siddiqui <aftaab@aftaab.xyz>"]
 description = "Visual Difference Detection CLI for Images"
+license = "MIT"
+repository = "https://github.com/cachevector/image-diff"
 
 [dependencies]
 image = "0.25.1"
